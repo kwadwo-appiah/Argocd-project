@@ -1,0 +1,15 @@
+{{- if and .Values.redis.enabled .Values.redis.pvc.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.redis.pvc.name }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.redis.name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  accessModes:
+    - {{ .Values.redis.pvc.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.redis.pvc.storage }}
+{{- end }}
