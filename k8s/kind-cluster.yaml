@@ -1,0 +1,21 @@
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+
+nodes:
+  - role: control-plane
+
+    # This allows the ingress controller to bind to localhost
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+
+    # Required so ingress-nginx can run on kind
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+
+
