@@ -1,9 +1,6 @@
-.__pycache__
-*.pyc
-*.pyo
-*.pyd
+# Python
+venv/
 __pycache__/
-*.so
-*.egg
-*.egg-info/
-dist/
+*.pyc
+.env
+
