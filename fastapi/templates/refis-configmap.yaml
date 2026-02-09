@@ -1,0 +1,10 @@
+{{- if .Values.redis.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.redis.configMap.name }}
+data:
+  REDIS_HOST: "{{ .Values.redis.configMap.host }}"
+  REDIS_PORT: "{{ .Values.redis.configMap.port }}"
+
+{{- end }}
