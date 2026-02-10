@@ -1,6 +1,6 @@
 app:
   name: python-api
-  replicas: 2
+  replicas: 3
 
   image:
     repository: python-api
@@ -18,7 +18,7 @@ service:
 redis:
   enabled: true
   name: redis
-  replicas: 2
+  replicas: 3
 
   image:
     repository: redis
