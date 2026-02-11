@@ -1,12 +1,13 @@
 provider "aws" {
-    region = "eu-west -2"
+    region = "eu-west-2"
 }
 
-resource "aws_s3_bucket" {
+resource "aws_s3_bucket" "tf_state" {
     bucket = "fastapi-redis-terraform-state"
 
     tags = {
-        Name = "Terraform State Bucket"
+        Name = "Terraform-State-Bucket"
+        Enviroment = "dev"
     }
 }
 
