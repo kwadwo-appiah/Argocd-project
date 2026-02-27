@@ -1,0 +1,18 @@
+{{- if .Values.alertmanager.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.alertmanager.name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: {{ .Values.alertmanager.receiver }}
+    receivers:
+      - name: {{ .Values.alertmanager.receiver }}
+        slack_configs:
+          - api_url: {{ .Values.alertmanager.slackAPI }}
+            channel: {{ .Values.alertmanager.slackChannel }}
+{{- end }}

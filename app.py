@@ -1,56 +1,79 @@
-# app.py
 from fastapi import FastAPI, HTTPException, Request
 import redis
 import os
-from pydantic import BaseModel
+from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST, start_http_server
+from fastapi.responses import Response
 
-app = FastAPI()
+app = FastAPI(title="Python FastAPI + Redis App with Metrics")
 
-# Read environment variables (Docker/K8s friendly)
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-
-# Initialize Redis client
-r = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    password=REDIS_PASSWORD,
-    decode_responses=True  # returns strings instead of bytes
+# -------------------------------
+# Prometheus Metrics
+# -------------------------------
+REQUEST_COUNT = Counter(
+    "http_requests_total",
+    "Total HTTP requests received",
+    ["method", "endpoint"]
 )
 
-# Middleware to log incoming requests
+# -------------------------------
+# Redis connection
+# -------------------------------
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
+
+# -------------------------------
+# Middleware to count requests
+# -------------------------------
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    print(f"Incoming request: {request.method} {request.url.path}")
+    REQUEST_COUNT.labels(method=request.method, endpoint=request.url.path).inc()
     response = await call_next(request)
     return response
 
-# Pydantic model for POST requests
-class CacheItem(BaseModel):
-    key: str
-    value: str
-
-# Root endpoint
+# -------------------------------
+# API Endpoints
+# -------------------------------
 @app.get("/")
 def root():
-    return {"message": "Welcome to FastAPI + Redis app!"}
+    return {"message": "FastAPI is working"}
 
-# Get value from Redis
+@app.post("/cache")
+def store_value(key: str, value: str):
+    r.set(key, value)
+    return {"message": f"Stored key '{key}'"}
+
 @app.get("/cache")
 def get_value(key: str):
     value = r.get(key)
     if value is None:
         raise HTTPException(status_code=404, detail="Key not found")
-    return {"key": key, "value": value}
+    return {"key": key, "value": value.decode()}
 
-# Set value in Redis
-@app.post("/cache")
-def set_value(item: CacheItem):
-    r.set(item.key, item.value)
-    return {"message": f"Stored key '{item.key}' successfully."}
+# -------------------------------
+# Metrics Endpoint
+# -------------------------------
+@app.on_event("startup")
+async def startup_event():
+    # This creates a separate background thread listening on 8001
+    # Prometheus will now find your metrics here.
+    metrics_port = 8001
+    start_http_server(metrics_port)
+    print(f"--- Metrics server started on port {metrics_port} ---")
 
-# Show Redis password (for testing only, remove in production!)
+# -------------------------------
+# Main API Endpoints (on Port 8000)
+# -------------------------------
+@app.get("/")
+def root():
+    return {"message": "FastAPI is working on port 8000"}
+
+# Note: You can remove the @app.get("/metrics") from the FastAPI app
+# if you want port 8000 to remain strictly for the API.
+# -------------------------------
+# Optional: secret test
+# -------------------------------
 @app.get("/secret-test")
 def show_secret():
-    return {"password": REDIS_PASSWORD}
+    return {"password": os.getenv("REDIS_PASSWORD")}

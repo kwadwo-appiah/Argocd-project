@@ -1,13 +1,22 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.app.name | default "python-api" }}
+  name: {{ .Values.service.name | default "python-api" }}
   labels:
-    app: {{ .Values.app.name | default "python-api" }}
+    app: {{ .Values.app.name }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.service.type | default "ClusterIP" }}
   selector:
-    app: {{ .Values.app.name | default "python-api" }}
+    app: {{ .Values.app.name }}
   ports:
-    - port: 80
+    # 1. Main Application Port (for the ALB/Ingress)
+    - name: http
+      port: {{ .Values.service.port | default 80 }}
       targetPort: {{ .Values.app.containerPort | default 8000 }}
+      protocol: TCP
+
+    # 2. Dedicated Metrics Port (for Prometheus)
+    - name: {{ .Values.app.metricsService.portName | default "metrics" }}
+      port: {{ .Values.app.metricsService.port | default 8001 }}
+      targetPort: {{ .Values.app.metricsContainerPort | default 8001 }}
+      protocol: TCP

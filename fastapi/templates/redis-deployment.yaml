@@ -42,6 +42,35 @@ spec:
             - name: redis-storage
               mountPath: /data
 
+          # Add liveness and readiness probes
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - "$(REDIS_PASSWORD)"
+                - ping
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - "$(REDIS_PASSWORD)"
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          startupProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - "$(REDIS_PASSWORD)"
+                - ping
+            failureThreshold: 30
+            periodSeconds: 10
+
       volumes:
         {{- if and .Values.redis.enabled .Values.redis.pvc.enabled }}
         - name: redis-storage

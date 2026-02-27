@@ -1,13 +1,77 @@
 app:
+  enabled: true
   name: python-api
-  replicas: 3
+  replicas: 2
+  
+  # Option 1: Prometheus Scrape Annotations
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8001"
+    prometheus.io/path: "/metrics"
+
+  containerPort: 8000           # Main FastAPI app
+  metricsContainerPort: 8001    # Dedicated metrics port (start_http_server)
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  metricsService:
+    enabled: true
+    name: python-api-metrics
+    port: 8001
+    portName: metrics
 
   image:
-    repository: python-api
+    repository: 759774119993.dkr.ecr.us-west-2.amazonaws.com/python-api
     tag: latest
     pullPolicy: IfNotPresent
 
-  containerPort: 8000
+  probes:
+    readiness:
+      path: /metrics
+      port: 8001                # Points to the new metrics server
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    liveness:
+      path: /
+      port: 8000                # Monitors the actual API health
+      initialDelaySeconds: 15
+      periodSeconds: 20
+    startup:
+      path: /metrics
+      port: 8001                # Points to the new metrics server
+      failureThreshold: 30
+      periodSeconds: 10
+
+redis:
+  enabled: true
+  name: redis
+  replicas: 1
+  image:
+    repository: redis
+    tag: "7"
+  containerPort: 6379
+  pvc:
+    enabled: true
+    name: redis-pvc
+    storageClassName: gp2      
+    storage: 5Gi
+    accessModes:
+      - ReadWriteOnce
+  secret:
+    enabled: true
+    name: redis-secret
+    password: redis-123
+  configMap:
+    enabled: true
+    name: redis-cm
+    host: redis
+    port: "6379"
 
 service:
   name: python-api
@@ -15,41 +79,45 @@ service:
   port: 80
   targetPort: 8000
 
-redis:
-  enabled: true
-  name: redis
-  replicas: 3
-
-  image:
-    repository: redis
-    tag: "7"
-
-  containerPort: 6379
-
-  # PersistentVolumeClaim for Redis
-  pvc:
-    enabled: true
-    name: redis-pvc
-    storage: 1Gi
-    accessMode: ReadWriteOnce
-
-  # Secret shared by Redis and the App
-  secret:
-    enabled: true
-    name: redis-secret
-    password: redis-123
-
-  # ConfigMap shared by Redis and the App
-  configMap:
-    enabled: true
-    name: redis-cm
-    host: redis
-    port: "6379"
-
 ingress:
   enabled: true
-  ingressClassName: nginx
-  host: localhost
-  path: /api/?(.*)
-  pathType: ImplementationSpecific
+  ingressClassName: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-port: "8001"
+    alb.ingress.kubernetes.io/healthcheck-path: /metrics
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/success-codes: "200"
+  host: ""
+  path: /
+  pathType: Prefix
   servicePort: 80
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 60
+
+alerting:
+  enabled: true
+  rules:
+    highCPU:
+      enabled: true
+      threshold: 0.6
+      duration: 2m
+    podDown:
+      enabled: true
+      duration: 1m
+    highMemory:
+      enabled: true
+      threshold: 0.8
+      duration: 2m
+
+alertmanager:
+  enabled: true
+  name: python-api-alertmanager
+  receiver: slack-notifications
+  slackAPI: https://hooks.slack.com/services/XXX/YYY/ZZZ
+  slackChannel: "#alerts"

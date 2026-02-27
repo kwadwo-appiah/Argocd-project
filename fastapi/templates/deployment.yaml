@@ -1,32 +1,78 @@
+{{- if .Values.app.metricsService.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.app.name }}
+  name: {{ .Values.app.name | default "python-api" }}
   labels:
-    app: {{ .Values.app.name }}
+    app: {{ .Values.app.name | default "python-api" }}
 spec:
-  replicas: {{ .Values.app.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  # Conditional replicas: only set if HPA is disabled
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.app.replicas | default 2 }}
+  {{- end }}
   selector:
     matchLabels:
-      app: {{ .Values.app.name }}
+      app: {{ .Values.app.name | default "python-api" }}
   template:
     metadata:
+      # Prometheus Scrape Annotations
+      annotations:
+        prometheus.io/scrape: {{ .Values.app.metricsService.enabled | quote }}
+        prometheus.io/path: {{ .Values.app.probes.readiness.path | default "/metrics" | quote }}
+        prometheus.io/port: {{ .Values.app.metricsService.port | default 8001 | quote }}
       labels:
-        app: {{ .Values.app.name }}
+        app: {{ .Values.app.name | default "python-api" }}
     spec:
       containers:
-        - name: {{ .Values.app.name }}
+        - name: {{ .Values.app.name | default "python-api" }}
           image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
-          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.app.image.pullPolicy | default "IfNotPresent" }}
           ports:
-            - containerPort: {{ .Values.app.containerPort }}
-
+            - name: http
+              containerPort: {{ .Values.app.containerPort | default 8000 }}
+            - name: metrics
+              containerPort: {{ .Values.app.metricsService.port | default 8001 }}
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
           envFrom:
-            {{- if and .Values.redis.enabled .Values.redis.configMap.enabled }}
             - configMapRef:
                 name: {{ .Values.redis.configMap.name }}
-            {{- end }}
-            {{- if and .Values.redis.enabled .Values.redis.secret.enabled }}
             - secretRef:
                 name: {{ .Values.redis.secret.name }}
-            {{- end }}
+          command:
+            - "uvicorn"
+            - "app:app"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "{{ .Values.app.containerPort | default 8000 }}"
+          # Health Probes
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.app.probes.readiness.path | default "/metrics" }}
+              port: {{ .Values.app.metricsService.port | default 8001 }}
+            initialDelaySeconds: {{ .Values.app.probes.readiness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.app.probes.readiness.periodSeconds | default 10 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.app.probes.liveness.path | default "/" }}
+              port: {{ .Values.app.containerPort | default 8000 }}
+            initialDelaySeconds: {{ .Values.app.probes.liveness.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ .Values.app.probes.liveness.periodSeconds | default 20 }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.app.probes.startup.path | default "/metrics" }}
+              port: {{ .Values.app.metricsService.port | default 8001 }}
+            failureThreshold: {{ .Values.app.probes.startup.failureThreshold | default 30 }}
+            periodSeconds: {{ .Values.app.probes.startup.periodSeconds | default 10 }}
+{{- end }}

@@ -7,8 +7,11 @@ metadata:
     app.kubernetes.io/name: {{ .Values.redis.name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
+  storageClassName: {{ .Values.redis.pvc.storageClassName }}
   accessModes:
-    - {{ .Values.redis.pvc.accessMode }}
+    {{- range .Values.redis.pvc.accessModes }}
+    - {{ . }}
+    {{- end }}
   resources:
     requests:
       storage: {{ .Values.redis.pvc.storage }}

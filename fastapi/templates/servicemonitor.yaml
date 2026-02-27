@@ -1,0 +1,22 @@
+{{- if .Values.app.metricsService.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.app.metricsService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    # This is the "Magic Key" that connects this file to your Prometheus instance
+    release: prometheus-operator 
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name }}
+  # Ensure it looks in the 'default' namespace where your API lives
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: {{ .Values.app.metricsService.portName }}
+      path: /metrics
+      interval: 15s
+{{- end }}

@@ -1,0 +1,38 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: python-api-slo
+  namespace: monitoring
+spec:
+  groups:
+  - name: python-api-slo-rules
+    rules:
+    # High latency
+    - alert: PythonAPIHighLatency
+      expr: histogram_quantile(0.95, sum(rate(request_duration_seconds_bucket[5m])) by (le)) > 0.5
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "FastAPI 95th percentile latency > 500ms"
+        description: "95th percentile latency has exceeded 500ms for more than 2 minutes."
+    
+    # Error rate alert
+    - alert: PythonAPIHighErrorRate
+      expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.01
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "FastAPI error rate > 1%"
+        description: "The 5xx error rate has exceeded 1% for 5 minutes."
+    
+    # Redis down
+    - alert: RedisDown
+      expr: redis_up == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Redis unavailable"
+        description: "Redis instance is down."

@@ -1,0 +1,40 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: python-api-alerts
+  namespace: default
+  labels:
+    release: prometheus-stack
+    app.kubernetes.io/name: helm
+spec:
+  groups:
+  - name: python-api.rules
+    rules:
+
+    - alert: PythonAPIHighCPU
+      expr: avg(rate(container_cpu_usage_seconds_total{pod=~"python-api.*"}[2m])) > 0.6
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage on python-api"
+        description: "CPU usage above 60% for more than 2 minutes"
+
+    - alert: PythonAPIPodDown
+      expr: up{job="python-api-metrics"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "python-api metrics endpoint down"
+        description: "Prometheus cannot scrape python-api metrics"
+
+    - alert: PythonAPIHighMemory
+      expr: container_memory_usage_bytes{pod=~"python-api.*"} 
+            / container_spec_memory_limit_bytes{pod=~"python-api.*"} > 0.8
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage"
+        description: "Memory usage above 80% of limit"
